@@ -1,22 +1,15 @@
-#include <stdio.h>
-#include "../include/mlp.h"
+#ifndef RBF_H
+#define RBF_H
 
-void init_mlp(MLPClassifier *model, int input_size, int hidden_size, double learning_rate, int epochs) {
-    model->input_size = input_size;
-    model->hidden_size = hidden_size;
-    model->learning_rate = learning_rate;
-    model->epochs = epochs;
-}
+typedef struct {
+    int input_size;
+    int num_centers;
+    double sigma;
+} RBFNetwork;
 
-void fit_mlp(MLPClassifier *model) {
-    printf("fit_mlp non encore implemente\n");
-}
+void init_rbf(RBFNetwork *model, int input_size, int num_centers, double sigma);
+void fit_rbf(RBFNetwork *model);
+void predict_rbf(RBFNetwork *model);
+double score_rbf(RBFNetwork *model);
 
-void predict_mlp(MLPClassifier *model) {
-    printf("predict_mlp non encore implemente\n");
-}
-
-double score_mlp(MLPClassifier *model) {
-    printf("score_mlp non encore implemente\n");
-    return 0.0;
-}
+#endif
