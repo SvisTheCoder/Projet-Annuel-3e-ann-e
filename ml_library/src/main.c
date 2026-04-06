@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include "../include/perceptron.h"
-#include "perceptron.h"
+
 int main() {
     double X[8][2] = {
         {1.0, 1.0},
@@ -20,7 +20,7 @@ int main() {
 
     fit_perceptron(&model, X, y, 8);
 
-    printf("=== RESULTATS PERCEPTRON ===\n");
+    printf(" RESULTATS PERCEPTRON \n");
     printf("Poids : [%f, %f]\n", model.weights[0], model.weights[1]);
     printf("Biais : %f\n", model.bias);
 
@@ -38,12 +38,10 @@ int main() {
     }
 
     if (save_perceptron(&model, "perceptron_model.txt")) {
-        printf("Modele sauvegarde dans perceptron_model.txt\n");
+        printf("Modele sauvegard dans perceptron_model.txt\n");
     } else {
         printf("Erreur lors de la sauvegarde\n");
     }
-
     free_perceptron(&model);
-
     return 0;
 }
