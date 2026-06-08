@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include "rbf.h"
+#include "../include/rbf.h"
 void init_rbf(RBFNetwork *model, int input_size, int num_centers, double sigma) {
     model->input_size = input_size;
     model->num_centers = num_centers;
