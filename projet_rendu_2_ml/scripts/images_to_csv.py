@@ -30,4 +30,3 @@ def main(output, size=32):
 if __name__=='__main__':
     if len(sys.argv)<2: raise SystemExit(1)
     main(sys.argv[1],int(sys.argv[2]) if len(sys.argv)>2 else 32)
-
