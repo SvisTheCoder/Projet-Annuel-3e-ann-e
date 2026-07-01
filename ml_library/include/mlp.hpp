@@ -30,6 +30,16 @@ public:
     double score(const Eigen::MatrixXd& X, const Eigen::VectorXi& y) const;
 
     std::vector<double> getLossHistory() const;
+    const Eigen::MatrixXd& getInputWeights() const;
+    const Eigen::VectorXd& getHiddenBias() const;
+    const Eigen::VectorXd& getOutputWeights() const;
+    double getOutputBias() const;
+    void setParameters(
+        const Eigen::MatrixXd& newW1,
+        const Eigen::VectorXd& newB1,
+        const Eigen::VectorXd& newW2,
+        double newB2
+    );
 };
 
 #endif

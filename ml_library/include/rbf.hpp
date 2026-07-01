@@ -24,6 +24,14 @@ public:
     int predict(const Eigen::VectorXd& x) const;
     double score(const Eigen::MatrixXd& X, const Eigen::VectorXi& y) const;
     std::vector<int> getErrors() const;
+    const Eigen::MatrixXd& getCenters() const;
+    const Eigen::VectorXd& getWeights() const;
+    double getBias() const;
+    void setParameters(
+        const Eigen::MatrixXd& newCenters,
+        const Eigen::VectorXd& newWeights,
+        double newBias
+    );
 };
 
 #endif

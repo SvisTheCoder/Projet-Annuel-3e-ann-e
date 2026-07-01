@@ -132,6 +132,16 @@ void run_all_tests(void) {
     };
     const int xor_y[] = {0, 1, 1, 0};
 
+    const double three_class_X[] = {
+        0.0, 0.0,
+        0.2, 0.1,
+        4.0, 0.0,
+        4.2, 0.1,
+        2.0, 4.0,
+        2.1, 4.2
+    };
+    const int three_class_y[] = {0, 0, 1, 1, 2, 2};
+
     run_case(
         "Donnees lineairement separables",
         linear_X,
@@ -148,5 +158,14 @@ void run_all_tests(void) {
         4,
         2,
         2
+    );
+
+    run_case(
+        "Classification one-vs-rest a trois classes",
+        three_class_X,
+        three_class_y,
+        6,
+        2,
+        3
     );
 }

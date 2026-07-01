@@ -1,17 +1,18 @@
 #include "ml_api.h"
 
-#include <algorithm>
-#include <cmath>
+#include "mlp.hpp"
+#include "perceptron.hpp"
+#include "rbf.hpp"
+#include "svm.hpp"
+
+#include <Eigen/Dense>
+
+#include <cstdlib>
 #include <fstream>
-#include <random>
+#include <iomanip>
+#include <memory>
 #include <string>
 #include <vector>
-
-/*
- * Cette partie est écrite en C++ mais n'expose que les fonctions C de ml_api.h.
- * L'application C manipule donc un simple pointeur MLModel* sans voir les
- * std::vector ni les détails des modèles.
- */
 
 static std::string g_last_error;
 
@@ -19,71 +20,19 @@ static void set_error(const std::string& message) {
     g_last_error = message;
 }
 
-static double dot_product(const double* a, const double* b, int size) {
-    double result = 0.0;
-
-    for (int i = 0; i < size; i++) {
-        result += a[i] * b[i];
-    }
-
-    return result;
-}
-
-static double sigmoid(double value) {
-    if (value > 50.0) {
-        return 1.0;
-    }
-
-    if (value < -50.0) {
-        return 0.0;
-    }
-
-    return 1.0 / (1.0 + std::exp(-value));
-}
-
-static void softmax(std::vector<double>& values) {
-    double maximum = *std::max_element(values.begin(), values.end());
-    double total = 0.0;
-
-    for (double& value : values) {
-        value = std::exp(value - maximum);
-        total += value;
-    }
-
-    for (double& value : values) {
-        value /= total;
-    }
-}
-
-static int index_of_maximum(const std::vector<double>& values) {
-    return static_cast<int>(
-        std::max_element(values.begin(), values.end()) - values.begin()
-    );
-}
-
 struct MLModel {
     MLModelType type;
     int feature_count;
     int class_count;
     MLParams params;
-
-    /* Perceptron et SVM : une ligne de poids par classe. */
-    std::vector<double> weights;
-    std::vector<double> biases;
-
-    /* PMC : entrée -> couche cachée -> sortie. */
-    std::vector<double> weights_input_hidden;
-    std::vector<double> biases_hidden;
-    std::vector<double> weights_hidden_output;
-    std::vector<double> biases_output;
-
-    /* RBF : centres utilisés par les activations gaussiennes. */
-    std::vector<double> centers;
+    std::vector<std::unique_ptr<Perceptron>> perceptrons;
+    std::vector<std::unique_ptr<MLP>> mlps;
+    std::vector<std::unique_ptr<RBF>> rbfs;
+    std::vector<std::unique_ptr<SVM>> svms;
 };
 
 MLParams ml_default_params(void) {
     MLParams params = {};
-
     params.epochs = 100;
     params.learning_rate = 0.05;
     params.hidden_size = 16;
@@ -91,8 +40,38 @@ MLParams ml_default_params(void) {
     params.rbf_sigma = 1.0;
     params.svm_lambda = 0.001;
     params.seed = 42;
-
     return params;
+}
+
+static bool valid_type(MLModelType type) {
+    return type >= ML_PERCEPTRON && type <= ML_SVM;
+}
+
+static void create_binary_models(MLModel& model) {
+    std::srand(model.params.seed);
+    for (int class_index = 0; class_index < model.class_count; ++class_index) {
+        switch (model.type) {
+            case ML_PERCEPTRON:
+                model.perceptrons.push_back(std::make_unique<Perceptron>(
+                    model.params.learning_rate, model.params.epochs));
+                break;
+            case ML_MLP:
+                model.mlps.push_back(std::make_unique<MLP>(
+                    model.feature_count, model.params.hidden_size,
+                    model.params.learning_rate, model.params.epochs));
+                break;
+            case ML_RBF:
+                model.rbfs.push_back(std::make_unique<RBF>(
+                    model.params.rbf_centers, model.params.rbf_sigma,
+                    model.params.learning_rate, model.params.epochs));
+                break;
+            case ML_SVM:
+                model.svms.push_back(std::make_unique<SVM>(
+                    model.params.learning_rate, model.params.epochs,
+                    model.params.svm_lambda));
+                break;
+        }
+    }
 }
 
 MLModel* ml_create(
@@ -101,529 +80,52 @@ MLModel* ml_create(
     int class_count,
     MLParams params
 ) {
+    g_last_error.clear();
+    if (!valid_type(type)) {
+        set_error("Type de modele inconnu");
+        return nullptr;
+    }
     if (feature_count <= 0 || class_count < 2) {
         set_error("Dimensions invalides");
         return nullptr;
     }
-
     if (params.epochs <= 0 || params.learning_rate <= 0.0) {
         set_error("Parametres d'apprentissage invalides");
         return nullptr;
     }
+    if (params.hidden_size <= 0) params.hidden_size = 1;
+    if (params.rbf_centers <= 0) params.rbf_centers = 1;
+    if (params.rbf_sigma <= 0.0) {
+        set_error("Sigma RBF doit etre positif");
+        return nullptr;
+    }
 
     try {
-        MLModel* model = new MLModel();
+        auto model = std::make_unique<MLModel>();
         model->type = type;
         model->feature_count = feature_count;
         model->class_count = class_count;
         model->params = params;
-
-        if (type == ML_PERCEPTRON || type == ML_SVM) {
-            model->weights.assign(class_count * feature_count, 0.0);
-            model->biases.assign(class_count, 0.0);
-        } else if (type == ML_MLP) {
-            if (model->params.hidden_size <= 0) {
-                model->params.hidden_size = 1;
-            }
-
-            int hidden_size = model->params.hidden_size;
-            std::mt19937 generator(model->params.seed);
-            std::normal_distribution<double> random_weight(0.0, 0.1);
-
-            model->weights_input_hidden.resize(feature_count * hidden_size);
-            model->biases_hidden.assign(hidden_size, 0.0);
-            model->weights_hidden_output.resize(hidden_size * class_count);
-            model->biases_output.assign(class_count, 0.0);
-
-            for (double& weight : model->weights_input_hidden) {
-                weight = random_weight(generator);
-            }
-
-            for (double& weight : model->weights_hidden_output) {
-                weight = random_weight(generator);
-            }
-        } else if (type == ML_RBF) {
-            if (model->params.rbf_centers <= 0) {
-                model->params.rbf_centers = 1;
-            }
-
-            if (model->params.rbf_sigma <= 0.0) {
-                delete model;
-                set_error("Sigma RBF doit etre positif");
-                return nullptr;
-            }
-
-            model->weights.assign(
-                class_count * model->params.rbf_centers,
-                0.0
-            );
-            model->biases.assign(class_count, 0.0);
-        } else {
-            delete model;
-            set_error("Type de modele inconnu");
-            return nullptr;
-        }
-
-        return model;
-    } catch (...) {
-        set_error("Allocation memoire impossible");
+        create_binary_models(*model);
+        return model.release();
+    } catch (const std::exception& exception) {
+        set_error(exception.what());
         return nullptr;
     }
 }
 
-static std::vector<double> linear_scores(
-    const MLModel* model,
-    const double* x
-) {
-    std::vector<double> scores(model->class_count, 0.0);
-
-    for (int class_index = 0;
-         class_index < model->class_count;
-         class_index++) {
-        const double* class_weights =
-            &model->weights[class_index * model->feature_count];
-
-        scores[class_index] =
-            dot_product(x, class_weights, model->feature_count)
-            + model->biases[class_index];
-    }
-
-    return scores;
-}
-
-static std::vector<double> mlp_scores(
-    const MLModel* model,
-    const double* x
-) {
-    int hidden_size = model->params.hidden_size;
-    std::vector<double> hidden(hidden_size, 0.0);
-    std::vector<double> scores(model->class_count, 0.0);
-
-    for (int hidden_index = 0;
-         hidden_index < hidden_size;
-         hidden_index++) {
-        double value = model->biases_hidden[hidden_index];
-
-        for (int feature = 0;
-             feature < model->feature_count;
-             feature++) {
-            value += x[feature]
-                * model->weights_input_hidden[
-                    feature * hidden_size + hidden_index
-                ];
-        }
-
-        hidden[hidden_index] = sigmoid(value);
-    }
-
-    for (int class_index = 0;
-         class_index < model->class_count;
-         class_index++) {
-        double value = model->biases_output[class_index];
-
-        for (int hidden_index = 0;
-             hidden_index < hidden_size;
-             hidden_index++) {
-            value += hidden[hidden_index]
-                * model->weights_hidden_output[
-                    hidden_index * model->class_count + class_index
-                ];
-        }
-
-        scores[class_index] = value;
-    }
-
-    return scores;
-}
-
-static double rbf_activation(
-    const MLModel* model,
-    const double* x,
-    int center_index
-) {
-    double squared_distance = 0.0;
-    const double* center =
-        &model->centers[center_index * model->feature_count];
-
-    for (int feature = 0;
-         feature < model->feature_count;
-         feature++) {
-        double difference = x[feature] - center[feature];
-        squared_distance += difference * difference;
-    }
-
-    double sigma = model->params.rbf_sigma;
-    return std::exp(-squared_distance / (2.0 * sigma * sigma));
-}
-
-static std::vector<double> rbf_scores(
-    const MLModel* model,
-    const double* x
-) {
-    int available_centers = static_cast<int>(
-        model->centers.size() / model->feature_count
-    );
-    std::vector<double> scores(model->class_count, 0.0);
-
-    for (int class_index = 0;
-         class_index < model->class_count;
-         class_index++) {
-        double value = model->biases[class_index];
-
-        for (int center_index = 0;
-             center_index < available_centers;
-             center_index++) {
-            double activation = rbf_activation(
-                model,
-                x,
-                center_index
-            );
-
-            value += model->weights[
-                class_index * model->params.rbf_centers + center_index
-            ] * activation;
-        }
-
-        scores[class_index] = value;
-    }
-
-    return scores;
-}
-
-static std::vector<double> model_scores(
-    const MLModel* model,
-    const double* x
-) {
-    if (model->type == ML_PERCEPTRON || model->type == ML_SVM) {
-        return linear_scores(model, x);
-    }
-
-    if (model->type == ML_MLP) {
-        return mlp_scores(model, x);
-    }
-
-    return rbf_scores(model, x);
-}
-
-static int train_perceptron(
-    MLModel* model,
+static Eigen::MatrixXd copy_features(
     const double* X,
-    const int* y,
-    int sample_count
+    int sample_count,
+    int feature_count
 ) {
-    double learning_rate = model->params.learning_rate;
-
-    /*
-     * Strategie un-contre-tous : pour chaque classe, la vraie classe vaut +1
-     * et toutes les autres valent -1. C'est la regle de Rosenblatt expliquee
-     * dans le cours et dans le rapport.
-     */
-    for (int epoch = 0; epoch < model->params.epochs; epoch++) {
-        for (int sample = 0; sample < sample_count; sample++) {
-            const double* x = &X[sample * model->feature_count];
-
-            for (int class_index = 0;
-                 class_index < model->class_count;
-                 class_index++) {
-                double expected = (y[sample] == class_index) ? 1.0 : -1.0;
-                double* class_weights =
-                    &model->weights[class_index * model->feature_count];
-                double score =
-                    dot_product(x, class_weights, model->feature_count)
-                    + model->biases[class_index];
-                double predicted = (score >= 0.0) ? 1.0 : -1.0;
-
-                if (predicted != expected) {
-                    for (int feature = 0;
-                         feature < model->feature_count;
-                         feature++) {
-                        class_weights[feature] +=
-                            learning_rate * expected * x[feature];
-                    }
-
-                    model->biases[class_index] +=
-                        learning_rate * expected;
-                }
-            }
+    Eigen::MatrixXd result(sample_count, feature_count);
+    for (int sample = 0; sample < sample_count; ++sample) {
+        for (int feature = 0; feature < feature_count; ++feature) {
+            result(sample, feature) = X[sample * feature_count + feature];
         }
     }
-
-    return 1;
-}
-
-static int train_svm(
-    MLModel* model,
-    const double* X,
-    const int* y,
-    int sample_count
-) {
-    double learning_rate = model->params.learning_rate;
-    double lambda = model->params.svm_lambda;
-
-    /* SVM lineaire un-contre-tous, perte hinge et regularisation L2. */
-    for (int epoch = 0; epoch < model->params.epochs; epoch++) {
-        for (int sample = 0; sample < sample_count; sample++) {
-            const double* x = &X[sample * model->feature_count];
-
-            for (int class_index = 0;
-                 class_index < model->class_count;
-                 class_index++) {
-                double label = (y[sample] == class_index) ? 1.0 : -1.0;
-                double* class_weights =
-                    &model->weights[class_index * model->feature_count];
-                double score =
-                    dot_product(x, class_weights, model->feature_count)
-                    + model->biases[class_index];
-                double margin = label * score;
-
-                for (int feature = 0;
-                     feature < model->feature_count;
-                     feature++) {
-                    double gradient = 2.0 * lambda * class_weights[feature];
-
-                    if (margin < 1.0) {
-                        gradient -= label * x[feature];
-                    }
-
-                    class_weights[feature] -= learning_rate * gradient;
-                }
-
-                if (margin < 1.0) {
-                    model->biases[class_index] += learning_rate * label;
-                }
-            }
-        }
-    }
-
-    return 1;
-}
-
-static int train_mlp(
-    MLModel* model,
-    const double* X,
-    const int* y,
-    int sample_count
-) {
-    int hidden_size = model->params.hidden_size;
-    double learning_rate = model->params.learning_rate;
-    std::mt19937 generator(model->params.seed);
-    std::vector<int> order(sample_count);
-
-    for (int i = 0; i < sample_count; i++) {
-        order[i] = i;
-    }
-
-    for (int epoch = 0; epoch < model->params.epochs; epoch++) {
-        std::shuffle(order.begin(), order.end(), generator);
-
-        for (int ordered_index : order) {
-            const double* x =
-                &X[ordered_index * model->feature_count];
-            std::vector<double> hidden(hidden_size, 0.0);
-            std::vector<double> output(model->class_count, 0.0);
-
-            /* Propagation avant : entree vers couche cachee. */
-            for (int hidden_index = 0;
-                 hidden_index < hidden_size;
-                 hidden_index++) {
-                double value = model->biases_hidden[hidden_index];
-
-                for (int feature = 0;
-                     feature < model->feature_count;
-                     feature++) {
-                    value += x[feature]
-                        * model->weights_input_hidden[
-                            feature * hidden_size + hidden_index
-                        ];
-                }
-
-                hidden[hidden_index] = sigmoid(value);
-            }
-
-            /* Couche cachee vers sorties, puis softmax. */
-            for (int class_index = 0;
-                 class_index < model->class_count;
-                 class_index++) {
-                double value = model->biases_output[class_index];
-
-                for (int hidden_index = 0;
-                     hidden_index < hidden_size;
-                     hidden_index++) {
-                    value += hidden[hidden_index]
-                        * model->weights_hidden_output[
-                            hidden_index * model->class_count + class_index
-                        ];
-                }
-
-                output[class_index] = value;
-            }
-
-            softmax(output);
-
-            /* Derivee de softmax + entropie croisee. */
-            std::vector<double> output_error = output;
-            output_error[y[ordered_index]] -= 1.0;
-            std::vector<double> hidden_error(hidden_size, 0.0);
-
-            /* Calculer l'erreur cachee avant de modifier W2. */
-            for (int hidden_index = 0;
-                 hidden_index < hidden_size;
-                 hidden_index++) {
-                for (int class_index = 0;
-                     class_index < model->class_count;
-                     class_index++) {
-                    hidden_error[hidden_index] +=
-                        output_error[class_index]
-                        * model->weights_hidden_output[
-                            hidden_index * model->class_count + class_index
-                        ];
-                }
-
-                hidden_error[hidden_index] *=
-                    hidden[hidden_index]
-                    * (1.0 - hidden[hidden_index]);
-            }
-
-            /* Mise a jour SGD : un exemple a la fois. */
-            for (int hidden_index = 0;
-                 hidden_index < hidden_size;
-                 hidden_index++) {
-                for (int class_index = 0;
-                     class_index < model->class_count;
-                     class_index++) {
-                    model->weights_hidden_output[
-                        hidden_index * model->class_count + class_index
-                    ] -= learning_rate
-                        * hidden[hidden_index]
-                        * output_error[class_index];
-                }
-            }
-
-            for (int class_index = 0;
-                 class_index < model->class_count;
-                 class_index++) {
-                model->biases_output[class_index] -=
-                    learning_rate * output_error[class_index];
-            }
-
-            for (int feature = 0;
-                 feature < model->feature_count;
-                 feature++) {
-                for (int hidden_index = 0;
-                     hidden_index < hidden_size;
-                     hidden_index++) {
-                    model->weights_input_hidden[
-                        feature * hidden_size + hidden_index
-                    ] -= learning_rate
-                        * x[feature]
-                        * hidden_error[hidden_index];
-                }
-            }
-
-            for (int hidden_index = 0;
-                 hidden_index < hidden_size;
-                 hidden_index++) {
-                model->biases_hidden[hidden_index] -=
-                    learning_rate * hidden_error[hidden_index];
-            }
-        }
-    }
-
-    return 1;
-}
-
-static int train_rbf(
-    MLModel* model,
-    const double* X,
-    const int* y,
-    int sample_count
-) {
-    int center_count = std::min(
-        model->params.rbf_centers,
-        sample_count
-    );
-    double learning_rate = model->params.learning_rate;
-
-    /*
-     * Version volontairement simple : on choisit des exemples regulierement
-     * repartis dans le dataset comme centres au lieu d'utiliser K-means.
-     */
-    model->centers.assign(
-        center_count * model->feature_count,
-        0.0
-    );
-
-    for (int center_index = 0;
-         center_index < center_count;
-         center_index++) {
-        int source_sample = center_index * sample_count / center_count;
-
-        for (int feature = 0;
-             feature < model->feature_count;
-             feature++) {
-            model->centers[
-                center_index * model->feature_count + feature
-            ] = X[source_sample * model->feature_count + feature];
-        }
-    }
-
-    for (int epoch = 0; epoch < model->params.epochs; epoch++) {
-        for (int sample = 0; sample < sample_count; sample++) {
-            const double* x = &X[sample * model->feature_count];
-            std::vector<double> activations(center_count, 0.0);
-            std::vector<double> output(model->class_count, 0.0);
-
-            for (int center_index = 0;
-                 center_index < center_count;
-                 center_index++) {
-                activations[center_index] = rbf_activation(
-                    model,
-                    x,
-                    center_index
-                );
-            }
-
-            for (int class_index = 0;
-                 class_index < model->class_count;
-                 class_index++) {
-                double value = model->biases[class_index];
-
-                for (int center_index = 0;
-                     center_index < center_count;
-                     center_index++) {
-                    value += model->weights[
-                        class_index * model->params.rbf_centers
-                        + center_index
-                    ] * activations[center_index];
-                }
-
-                output[class_index] = value;
-            }
-
-            softmax(output);
-            output[y[sample]] -= 1.0;
-
-            for (int class_index = 0;
-                 class_index < model->class_count;
-                 class_index++) {
-                for (int center_index = 0;
-                     center_index < center_count;
-                     center_index++) {
-                    model->weights[
-                        class_index * model->params.rbf_centers
-                        + center_index
-                    ] -= learning_rate
-                        * output[class_index]
-                        * activations[center_index];
-                }
-
-                model->biases[class_index] -=
-                    learning_rate * output[class_index];
-            }
-        }
-    }
-
-    return 1;
+    return result;
 }
 
 int ml_train(
@@ -632,39 +134,86 @@ int ml_train(
     const int* y,
     int sample_count
 ) {
+    g_last_error.clear();
     if (model == nullptr || X == nullptr || y == nullptr || sample_count <= 0) {
         set_error("Arguments d'entrainement invalides");
         return 0;
     }
-
-    for (int sample = 0; sample < sample_count; sample++) {
+    for (int sample = 0; sample < sample_count; ++sample) {
         if (y[sample] < 0 || y[sample] >= model->class_count) {
             set_error("Label hors limites");
             return 0;
         }
     }
 
-    if (model->type == ML_PERCEPTRON) {
-        return train_perceptron(model, X, y, sample_count);
+    try {
+        const Eigen::MatrixXd features =
+            copy_features(X, sample_count, model->feature_count);
+        for (int class_index = 0; class_index < model->class_count; ++class_index) {
+            Eigen::VectorXi binary_labels(sample_count);
+            const bool signed_labels =
+                model->type == ML_PERCEPTRON || model->type == ML_SVM;
+            for (int sample = 0; sample < sample_count; ++sample) {
+                binary_labels(sample) = y[sample] == class_index
+                    ? 1
+                    : (signed_labels ? -1 : 0);
+            }
+            switch (model->type) {
+                case ML_PERCEPTRON:
+                    model->perceptrons[class_index]->fit(features, binary_labels);
+                    break;
+                case ML_MLP:
+                    model->mlps[class_index]->fit(features, binary_labels);
+                    break;
+                case ML_RBF:
+                    model->rbfs[class_index]->fit(features, binary_labels);
+                    break;
+                case ML_SVM:
+                    model->svms[class_index]->fit(features, binary_labels);
+                    break;
+            }
+        }
+        return 1;
+    } catch (const std::exception& exception) {
+        set_error(exception.what());
+        return 0;
     }
+}
 
-    if (model->type == ML_MLP) {
-        return train_mlp(model, X, y, sample_count);
+static double class_score(
+    const MLModel& model,
+    int class_index,
+    const Eigen::VectorXd& x
+) {
+    switch (model.type) {
+        case ML_PERCEPTRON:
+            return model.perceptrons[class_index]->decisionFunction(x);
+        case ML_MLP:
+            return model.mlps[class_index]->predictProba(x);
+        case ML_RBF:
+            return model.rbfs[class_index]->predictProba(x);
+        case ML_SVM:
+            return model.svms[class_index]->decisionFunction(x);
     }
-
-    if (model->type == ML_RBF) {
-        return train_rbf(model, X, y, sample_count);
-    }
-
-    return train_svm(model, X, y, sample_count);
+    return 0.0;
 }
 
 int ml_predict(const MLModel* model, const double* x) {
-    if (model == nullptr || x == nullptr) {
-        return -1;
+    if (model == nullptr || x == nullptr) return -1;
+    Eigen::VectorXd features(model->feature_count);
+    for (int feature = 0; feature < model->feature_count; ++feature) {
+        features(feature) = x[feature];
     }
-
-    return index_of_maximum(model_scores(model, x));
+    int best_class = 0;
+    double best_score = class_score(*model, 0, features);
+    for (int class_index = 1; class_index < model->class_count; ++class_index) {
+        const double score = class_score(*model, class_index, features);
+        if (score > best_score) {
+            best_score = score;
+            best_class = class_index;
+        }
+    }
+    return best_class;
 }
 
 double ml_score(
@@ -676,148 +225,232 @@ double ml_score(
     if (model == nullptr || X == nullptr || y == nullptr || sample_count <= 0) {
         return 0.0;
     }
-
     int correct = 0;
-
-    for (int sample = 0; sample < sample_count; sample++) {
-        const double* x = &X[sample * model->feature_count];
-
-        if (ml_predict(model, x) == y[sample]) {
-            correct++;
+    for (int sample = 0; sample < sample_count; ++sample) {
+        if (ml_predict(model, X + sample * model->feature_count) == y[sample]) {
+            ++correct;
         }
     }
-
     return static_cast<double>(correct) / sample_count;
 }
 
-static void save_vector(
-    std::ofstream& file,
-    const std::vector<double>& values
-) {
-    file << values.size() << '\n';
-
-    for (double value : values) {
-        file << value << ' ';
-    }
-
+static void save_vector(std::ostream& file, const Eigen::VectorXd& values) {
+    file << values.size();
+    for (Eigen::Index i = 0; i < values.size(); ++i) file << ' ' << values(i);
     file << '\n';
 }
 
-static bool load_vector(
-    std::ifstream& file,
-    std::vector<double>& values
-) {
-    std::size_t size = 0;
-
-    if (!(file >> size)) {
-        return false;
-    }
-
-    values.resize(size);
-
-    for (double& value : values) {
-        if (!(file >> value)) {
-            return false;
+static void save_matrix(std::ostream& file, const Eigen::MatrixXd& values) {
+    file << values.rows() << ' ' << values.cols();
+    for (Eigen::Index row = 0; row < values.rows(); ++row) {
+        for (Eigen::Index col = 0; col < values.cols(); ++col) {
+            file << ' ' << values(row, col);
         }
     }
+    file << '\n';
+}
 
+static bool load_vector(std::istream& file, Eigen::VectorXd& values) {
+    Eigen::Index size;
+    if (!(file >> size) || size < 0) return false;
+    values.resize(size);
+    for (Eigen::Index i = 0; i < size; ++i) if (!(file >> values(i))) return false;
+    return true;
+}
+
+static bool load_matrix(std::istream& file, Eigen::MatrixXd& values) {
+    Eigen::Index rows, cols;
+    if (!(file >> rows >> cols) || rows < 0 || cols < 0) return false;
+    values.resize(rows, cols);
+    for (Eigen::Index row = 0; row < rows; ++row) {
+        for (Eigen::Index col = 0; col < cols; ++col) {
+            if (!(file >> values(row, col))) return false;
+        }
+    }
     return true;
 }
 
 int ml_save(const MLModel* model, const char* path) {
+    g_last_error.clear();
     if (model == nullptr || path == nullptr) {
         set_error("Modele ou chemin invalide");
         return 0;
     }
-
     std::ofstream file(path);
-
     if (!file) {
         set_error("Impossible d'ouvrir le fichier modele");
         return 0;
     }
-
-    file << "MLMODEL 1\n";
-    file << static_cast<int>(model->type) << ' '
-         << model->feature_count << ' '
-         << model->class_count << '\n';
-    file << model->params.epochs << ' '
-         << model->params.learning_rate << ' '
-         << model->params.hidden_size << ' '
-         << model->params.rbf_centers << ' '
-         << model->params.rbf_sigma << ' '
-         << model->params.svm_lambda << ' '
+    file << std::setprecision(17);
+    file << "MLMODEL 2\n";
+    file << static_cast<int>(model->type) << ' ' << model->feature_count
+         << ' ' << model->class_count << '\n';
+    file << model->params.epochs << ' ' << model->params.learning_rate << ' '
+         << model->params.hidden_size << ' ' << model->params.rbf_centers << ' '
+         << model->params.rbf_sigma << ' ' << model->params.svm_lambda << ' '
          << model->params.seed << '\n';
 
-    save_vector(file, model->weights);
-    save_vector(file, model->biases);
-    save_vector(file, model->weights_input_hidden);
-    save_vector(file, model->biases_hidden);
-    save_vector(file, model->weights_hidden_output);
-    save_vector(file, model->biases_output);
-    save_vector(file, model->centers);
-
+    for (int class_index = 0; class_index < model->class_count; ++class_index) {
+        switch (model->type) {
+            case ML_PERCEPTRON:
+                save_vector(file, model->perceptrons[class_index]->getWeights());
+                file << model->perceptrons[class_index]->getBias() << '\n';
+                break;
+            case ML_MLP:
+                save_matrix(file, model->mlps[class_index]->getInputWeights());
+                save_vector(file, model->mlps[class_index]->getHiddenBias());
+                save_vector(file, model->mlps[class_index]->getOutputWeights());
+                file << model->mlps[class_index]->getOutputBias() << '\n';
+                break;
+            case ML_RBF:
+                save_matrix(file, model->rbfs[class_index]->getCenters());
+                save_vector(file, model->rbfs[class_index]->getWeights());
+                file << model->rbfs[class_index]->getBias() << '\n';
+                break;
+            case ML_SVM:
+                save_vector(file, model->svms[class_index]->getWeights());
+                file << model->svms[class_index]->getBias() << '\n';
+                break;
+        }
+    }
+    if (!file) {
+        set_error("Erreur pendant l'ecriture du modele");
+        return 0;
+    }
     return 1;
 }
 
+static bool load_version_2(std::istream& file, MLModel& model) {
+    for (int class_index = 0; class_index < model.class_count; ++class_index) {
+        double bias;
+        if (model.type == ML_PERCEPTRON || model.type == ML_SVM) {
+            Eigen::VectorXd weights;
+            if (!load_vector(file, weights) || !(file >> bias)) return false;
+            if (weights.size() != model.feature_count) return false;
+            if (model.type == ML_PERCEPTRON) {
+                model.perceptrons[class_index]->setParameters(weights, bias);
+            } else {
+                model.svms[class_index]->setParameters(weights, bias);
+            }
+        } else if (model.type == ML_MLP) {
+            Eigen::MatrixXd W1;
+            Eigen::VectorXd b1, W2;
+            if (!load_matrix(file, W1) || !load_vector(file, b1)
+                || !load_vector(file, W2) || !(file >> bias)) return false;
+            if (W1.rows() != model.feature_count
+                || W1.cols() != model.params.hidden_size
+                || b1.size() != model.params.hidden_size
+                || W2.size() != model.params.hidden_size) return false;
+            model.mlps[class_index]->setParameters(W1, b1, W2, bias);
+        } else {
+            Eigen::MatrixXd centers;
+            Eigen::VectorXd weights;
+            if (!load_matrix(file, centers) || !load_vector(file, weights)
+                || !(file >> bias)) return false;
+            if (centers.cols() != model.feature_count
+                || centers.rows() <= 0
+                || weights.size() != centers.rows()) return false;
+            model.rbfs[class_index]->setParameters(centers, weights, bias);
+        }
+    }
+    return true;
+}
+
+static bool load_legacy_vector(std::istream& file, std::vector<double>& values) {
+    std::size_t size;
+    if (!(file >> size)) return false;
+    values.resize(size);
+    for (double& value : values) if (!(file >> value)) return false;
+    return true;
+}
+
+static bool load_version_1(std::istream& file, MLModel& model) {
+    std::vector<double> weights, biases, W1raw, b1raw, W2raw, b2raw, centersraw;
+    if (!load_legacy_vector(file, weights) || !load_legacy_vector(file, biases)
+        || !load_legacy_vector(file, W1raw) || !load_legacy_vector(file, b1raw)
+        || !load_legacy_vector(file, W2raw) || !load_legacy_vector(file, b2raw)
+        || !load_legacy_vector(file, centersraw)) return false;
+
+    if (model.type == ML_PERCEPTRON || model.type == ML_SVM) {
+        if (weights.size() != static_cast<std::size_t>(model.feature_count * model.class_count)
+            || biases.size() != static_cast<std::size_t>(model.class_count)) return false;
+        for (int c = 0; c < model.class_count; ++c) {
+            Eigen::VectorXd w(model.feature_count);
+            for (int f = 0; f < model.feature_count; ++f) {
+                w(f) = weights[c * model.feature_count + f];
+            }
+            if (model.type == ML_PERCEPTRON) model.perceptrons[c]->setParameters(w, biases[c]);
+            else model.svms[c]->setParameters(w, biases[c]);
+        }
+    } else if (model.type == ML_MLP) {
+        if (W1raw.size() != static_cast<std::size_t>(model.feature_count * model.params.hidden_size)
+            || b1raw.size() != static_cast<std::size_t>(model.params.hidden_size)
+            || W2raw.size() != static_cast<std::size_t>(model.params.hidden_size * model.class_count)
+            || b2raw.size() != static_cast<std::size_t>(model.class_count)) return false;
+        Eigen::MatrixXd W1(model.feature_count, model.params.hidden_size);
+        Eigen::VectorXd b1(model.params.hidden_size);
+        for (int f = 0; f < model.feature_count; ++f)
+            for (int h = 0; h < model.params.hidden_size; ++h)
+                W1(f, h) = W1raw[f * model.params.hidden_size + h];
+        for (int h = 0; h < model.params.hidden_size; ++h) b1(h) = b1raw[h];
+        for (int c = 0; c < model.class_count; ++c) {
+            Eigen::VectorXd W2(model.params.hidden_size);
+            for (int h = 0; h < model.params.hidden_size; ++h)
+                W2(h) = W2raw[h * model.class_count + c];
+            model.mlps[c]->setParameters(W1, b1, W2, b2raw[c]);
+        }
+    } else {
+        const int center_count = static_cast<int>(centersraw.size()) / model.feature_count;
+        if (center_count != model.params.rbf_centers
+            || weights.size() != static_cast<std::size_t>(model.class_count * model.params.rbf_centers)
+            || biases.size() != static_cast<std::size_t>(model.class_count)) return false;
+        Eigen::MatrixXd centers(center_count, model.feature_count);
+        for (int r = 0; r < center_count; ++r)
+            for (int f = 0; f < model.feature_count; ++f)
+                centers(r, f) = centersraw[r * model.feature_count + f];
+        for (int c = 0; c < model.class_count; ++c) {
+            Eigen::VectorXd w(center_count);
+            for (int r = 0; r < center_count; ++r)
+                w(r) = weights[c * model.params.rbf_centers + r];
+            model.rbfs[c]->setParameters(centers, w, biases[c]);
+        }
+    }
+    return true;
+}
+
 MLModel* ml_load(const char* path) {
+    g_last_error.clear();
     if (path == nullptr) {
         set_error("Chemin de modele invalide");
         return nullptr;
     }
-
     std::ifstream file(path);
     std::string magic;
-    int version = 0;
-    int type = 0;
-    int feature_count = 0;
-    int class_count = 0;
+    int version, raw_type, feature_count, class_count;
     MLParams params = {};
-
-    if (!(file >> magic >> version) || magic != "MLMODEL" || version != 1) {
+    if (!(file >> magic >> version) || magic != "MLMODEL"
+        || (version != 1 && version != 2)) {
         set_error("Format de modele invalide");
         return nullptr;
     }
-
-    if (!(file >> type >> feature_count >> class_count
-          >> params.epochs
-          >> params.learning_rate
-          >> params.hidden_size
-          >> params.rbf_centers
-          >> params.rbf_sigma
-          >> params.svm_lambda
+    if (!(file >> raw_type >> feature_count >> class_count
+          >> params.epochs >> params.learning_rate >> params.hidden_size
+          >> params.rbf_centers >> params.rbf_sigma >> params.svm_lambda
           >> params.seed)) {
         set_error("En-tete du modele incomplet");
         return nullptr;
     }
-
-    MLModel* model = ml_create(
-        static_cast<MLModelType>(type),
-        feature_count,
-        class_count,
-        params
-    );
-
-    if (model == nullptr) {
-        return nullptr;
-    }
-
-    bool complete =
-        load_vector(file, model->weights)
-        && load_vector(file, model->biases)
-        && load_vector(file, model->weights_input_hidden)
-        && load_vector(file, model->biases_hidden)
-        && load_vector(file, model->weights_hidden_output)
-        && load_vector(file, model->biases_output)
-        && load_vector(file, model->centers);
-
+    std::unique_ptr<MLModel> model(ml_create(
+        static_cast<MLModelType>(raw_type), feature_count, class_count, params));
+    if (!model) return nullptr;
+    const bool complete = version == 2
+        ? load_version_2(file, *model)
+        : load_version_1(file, *model);
     if (!complete) {
-        delete model;
-        set_error("Fichier de modele incomplet");
+        set_error("Fichier de modele incomplet ou dimensions incoherentes");
         return nullptr;
     }
-
-    return model;
+    return model.release();
 }
 
 MLModelType ml_type(const MLModel* model) {
@@ -832,10 +465,6 @@ int ml_class_count(const MLModel* model) {
     return model == nullptr ? 0 : model->class_count;
 }
 
-const char* ml_last_error(void) {
-    return g_last_error.c_str();
-}
+const char* ml_last_error(void) { return g_last_error.c_str(); }
 
-void ml_free(MLModel* model) {
-    delete model;
-}
+void ml_free(MLModel* model) { delete model; }
