@@ -1,0 +1,44 @@
+{
+  "protocol": {
+    "seed": 42,
+    "outer_train_size": 1482,
+    "outer_test_size": 370,
+    "selection_train_size": 1186,
+    "validation_size": 296,
+    "candidate_selection_used_outer_test": false,
+    "outer_test_evaluations_per_algorithm": 1
+  },
+  "perceptron": {
+    "v1_test_accuracy": 0.5216216216216216,
+    "selected_parameters": {"epochs": 30, "learning_rate": 0.002},
+    "selected_train_accuracy": 0.5978407557354926,
+    "selected_test_accuracy": 0.4648648648648649,
+    "selected_duration_seconds": 3.7363352,
+    "selected_test_confusion_matrix": [[82, 7, 18], [96, 26, 22], [50, 5, 64]],
+    "v2_retained": false
+  },
+  "svm": {
+    "selected_candidate": "v1_reference",
+    "v1_train_accuracy": 0.6740890688259109,
+    "v1_test_accuracy": 0.5081081081081081,
+    "v1_duration_seconds": 6.275721,
+    "v1_test_confusion_matrix": [[59, 31, 17], [55, 63, 26], [32, 21, 66]],
+    "v2_retained": false
+  },
+  "mlp": {
+    "v1_test_accuracy": 0.4945945945945946,
+    "selected_parameters": {"epochs": 12, "learning_rate": 0.02, "hidden_size": 32},
+    "selected_train_accuracy": 0.6356275303643725,
+    "selected_test_accuracy": 0.5675675675675675,
+    "selected_duration_seconds": 59.6029373,
+    "selected_test_confusion_matrix": [[29, 61, 17], [16, 106, 22], [7, 37, 75]],
+    "v2_retained": true,
+    "model_file": "buildings_3classes_32x32_mlp_v2.model"
+  },
+  "rbf": {
+    "tuned": false,
+    "v1_test_accuracy": 0.3216216216216216,
+    "v1_test_confusion_matrix": [[0, 0, 107], [0, 0, 144], [0, 0, 119]],
+    "analysis": "Gaussian activations collapse in 1024 dimensions with sigma 1 and only 16 first-row centers; one-vs-rest biases dominate."
+  }
+}

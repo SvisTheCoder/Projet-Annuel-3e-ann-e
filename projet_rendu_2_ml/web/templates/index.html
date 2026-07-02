@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="fr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Classification architecturale locale</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<main class="page">
+    <header class="hero">
+        <p class="eyebrow">Projet C++ · prédiction locale</p>
+        <h1>Reconnaître un style architectural</h1>
+        <p>Choisissez un modèle entraîné, puis ajoutez jusqu'à dix images.</p>
+    </header>
+
+    <section class="panel">
+        <form method="post" enctype="multipart/form-data">
+            <label for="model">Modèle C++</label>
+            <select id="model" name="model">
+                {% for model in models %}
+                <option value="{{ model.id }}" {% if selected_model == model.id %}selected{% endif %}>
+                    {{ model.display_name }}
+                </option>
+                {% endfor %}
+            </select>
+
+            <label for="images">Images PNG, JPG ou JPEG</label>
+            <input id="images" name="images" type="file"
+                   accept=".png,.jpg,.jpeg,image/png,image/jpeg" multiple required>
+            <p class="hint">Maximum : 10 images, 10 Mo par image.</p>
+            <button type="submit">Classifier</button>
+        </form>
+
+        {% if models %}
+        <div class="model-catalog">
+            {% for model in models %}
+            <article class="model-summary">
+                <h3>{{ model.display_name }}</h3>
+                <p>{{ model.algorithm }} · {{ model.image_size_text }}</p>
+                <p>Classes : {{ model.class_names|join(", ") }}</p>
+                <p>Accuracy test : {{ "%.3f"|format(model.test_accuracy) }}</p>
+                <p>Score : {{ model.score_label }}</p>
+            </article>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </section>
+
+    {% if errors %}
+    <section class="messages" aria-label="Erreurs">
+        {% for error in errors %}<p>{{ error }}</p>{% endfor %}
+    </section>
+    {% endif %}
+
+    {% if results %}
+    <section class="results">
+        <div class="section-title">
+            <h2>Résultats</h2>
+            <p>Les scores ne sont comparables qu'à l'intérieur d'un même modèle.</p>
+        </div>
+        <div class="cards">
+            {% for result in results %}
+            <article class="card">
+                <img src="{{ result.preview }}" alt="Aperçu de {{ result.filename }}">
+                <div class="card-content">
+                    <p class="filename">{{ result.filename }}</p>
+                    <h3>{{ result.class_name }}</h3>
+                    <dl>
+                        <div><dt>Identifiant</dt><dd>{{ result.class_id }}</dd></div>
+                        <div><dt>Modèle</dt><dd>{{ result.display_name }}</dd></div>
+                        <div><dt>Type de score</dt><dd>{{ result.score_type }}</dd></div>
+                        <div><dt>Score</dt><dd>{{ "%.6f"|format(result.score) }}</dd></div>
+                    </dl>
+                </div>
+            </article>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    <footer>
+        Traitement local : navigateur → Flask/Pillow → predict_cli → ml_library.
+    </footer>
+</main>
+</body>
+</html>
