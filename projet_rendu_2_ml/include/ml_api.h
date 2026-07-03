@@ -21,6 +21,7 @@ MLParams ml_default_params(void);
 MLModel* ml_create(MLModelType type, int feature_count, int class_count, MLParams params);
 int ml_train(MLModel* model, const double* X, const int* y, int sample_count);
 int ml_predict(const MLModel* model, const double* x);
+int ml_predict_with_score(const MLModel* model, const double* x, double* score);
 double ml_score(const MLModel* model, const double* X, const int* y, int sample_count);
 int ml_save(const MLModel* model, const char* path);
 MLModel* ml_load(const char* path);

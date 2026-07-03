@@ -198,8 +198,15 @@ static double class_score(
     return 0.0;
 }
 
-int ml_predict(const MLModel* model, const double* x) {
-    if (model == nullptr || x == nullptr) return -1;
+int ml_predict_with_score(
+    const MLModel* model,
+    const double* x,
+    double* score
+) {
+    if (model == nullptr || x == nullptr) {
+        set_error("Modele ou caracteristiques invalides");
+        return -1;
+    }
     Eigen::VectorXd features(model->feature_count);
     for (int feature = 0; feature < model->feature_count; ++feature) {
         features(feature) = x[feature];
@@ -213,7 +220,14 @@ int ml_predict(const MLModel* model, const double* x) {
             best_class = class_index;
         }
     }
+    if (score != nullptr) {
+        *score = best_score;
+    }
     return best_class;
+}
+
+int ml_predict(const MLModel* model, const double* x) {
+    return ml_predict_with_score(model, x, nullptr);
 }
 
 double ml_score(

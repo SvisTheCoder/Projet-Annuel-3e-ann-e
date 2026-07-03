@@ -66,7 +66,54 @@ target_include_directories(client PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
+# Outil non interactif utilisé par l'interface web pour une prédiction.
+add_executable(predict_cli
+        src/predict_cli.cpp
+)
+
+target_link_libraries(predict_cli PRIVATE
+        ml_core
+)
+
+# Outil reproductible pour entraîner et sauvegarder un modèle depuis un CSV.
+add_executable(train_cli
+        src/train_cli.cpp
+)
+
+target_link_libraries(train_cli PRIVATE
+        ml_core
+        c_support
+)
+
+# Les CLI doivent fonctionner depuis Flask même si mingw/bin n'est pas dans PATH.
+if(MINGW)
+ target_link_options(predict_cli PRIVATE -static -static-libgcc -static-libstdc++)
+ target_link_options(train_cli PRIVATE -static -static-libgcc -static-libstdc++)
+endif()
+
 if(WIN32)
  target_link_libraries(server PRIVATE ws2_32)
  target_link_libraries(client PRIVATE ws2_32)
+ target_link_libraries(train_cli PRIVATE bcrypt)
 endif()
+
+# Audit isolé : il observe la sensibilité du MLP sur XOR sans modifier l'algorithme.
+add_executable(mlp_xor_audit
+        src/mlp_xor_audit.cpp
+)
+
+target_link_libraries(mlp_xor_audit PRIVATE
+        ml_core
+        ml_algorithms
+)
+
+# Comparaison limitée de paramètres sur une validation interne au train.
+# Le jeu de test externe n'est jamais utilisé par cet outil.
+add_executable(tune_cli
+        src/tune_cli.cpp
+)
+
+target_link_libraries(tune_cli PRIVATE
+        ml_core
+        c_support
+)

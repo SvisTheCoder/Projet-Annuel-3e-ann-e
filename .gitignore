@@ -1,0 +1,23 @@
+# Environnements et artefacts de build
+projet_rendu_2_ml/.venv/
+projet_rendu_2_ml/cmake-build-debug/
+projet_rendu_2_ml/build/
+**/__pycache__/
+*.pyc
+
+# Données locales ou générées
+projet_rendu_2_ml/data/Dataset final-20260702T055807Z-3-001/
+projet_rendu_2_ml/data/batiments.csv
+projet_rendu_2_ml/data/batiments_3_classes.csv
+
+# Anciens modèles non proposés dans le manifest
+projet_rendu_2_ml/models/perceptron.model
+projet_rendu_2_ml/models/mlp.model
+projet_rendu_2_ml/models/rbf.model
+projet_rendu_2_ml/models/svm.model
+projet_rendu_2_ml/models/buildings_3classes_32x32_mlp_v1.model
+
+# Fichiers temporaires de prédiction et de validation
+projet_rendu_2_ml/features_*.txt
+projet_rendu_2_ml/models/*.validation.tmp
+projet_rendu_2_ml/test_model_*.tmp

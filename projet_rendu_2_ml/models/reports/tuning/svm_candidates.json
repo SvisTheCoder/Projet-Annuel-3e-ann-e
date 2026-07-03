@@ -1,0 +1,16 @@
+{
+  "algorithm": "SVM",
+  "seed": 42,
+  "outer_train_size": 1482,
+  "outer_test_size": 370,
+  "selection_train_size": 1186,
+  "validation_size": 296,
+  "outer_test_used_for_selection": false,
+  "candidates": [
+    {"name":"v1_reference","epochs":12,"learning_rate":0.0050000000000000001,"hidden_size":16,"svm_lambda":0.001,"train_accuracy":0.58768971332209108,"validation_accuracy":0.52702702702702697,"duration_seconds":7.6377250999999999,"validation_confusion_matrix":[[6,34,35],[4,67,51],[0,16,83]]},
+    {"name":"more_epochs_lower_lr","epochs":25,"learning_rate":0.002,"hidden_size":16,"svm_lambda":0.001,"train_accuracy":0.61382799325463744,"validation_accuracy":0.5067567567567568,"duration_seconds":12.8880189,"validation_confusion_matrix":[[11,28,36],[7,57,58],[3,14,82]]},
+    {"name":"small_lr_low_regularization","epochs":30,"learning_rate":0.001,"hidden_size":16,"svm_lambda":0.0001,"train_accuracy":0.63406408094435074,"validation_accuracy":0.52702702702702697,"duration_seconds":20.538853,"validation_confusion_matrix":[[14,32,29],[5,62,55],[3,16,80]]},
+    {"name":"moderate_epochs_more_regularization","epochs":20,"learning_rate":0.0050000000000000001,"hidden_size":16,"svm_lambda":0.01,"train_accuracy":0.48988195615514335,"validation_accuracy":0.47972972972972971,"duration_seconds":10.5470465,"validation_confusion_matrix":[[2,21,52],[1,51,70],[0,10,89]]}
+  ],
+  "selected_candidate": "v1_reference"
+}
