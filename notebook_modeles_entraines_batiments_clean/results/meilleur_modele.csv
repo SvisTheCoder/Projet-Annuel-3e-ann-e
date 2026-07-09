@@ -1,0 +1,7 @@
+Information,Valeur
+Meilleur modèle,MLP
+Identifiant,mlp_v2
+Accuracy test,0.5676
+Accuracy train,0.6356
+Temps entraînement (s),59.6
+Taille modèle (Ko),1982.93

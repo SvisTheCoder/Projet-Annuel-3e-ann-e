@@ -1,0 +1,5 @@
+Modèle,Fichier,Existe,Taille réelle (Ko),Rechargement validé
+Perceptron,buildings_3classes_32x32_perceptron_v1.model,True,62.740234375,True
+MLP,buildings_3classes_32x32_mlp_v2.model,True,1982.91796875,True
+RBF,buildings_3classes_32x32_rbf_v1.model,True,934.052734375,True
+SVM,buildings_3classes_32x32_svm_v1.model,True,63.17578125,True

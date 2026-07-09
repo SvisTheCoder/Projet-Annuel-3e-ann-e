@@ -1,0 +1,23 @@
+modele,point,valeur
+RBF,type,RBF naïf à centres fixes
+RBF,kmeans,Non
+RBF,lloyd,Non
+RBF,centres_par_classifieur,16
+RBF,classifieurs_binaires,3
+RBF,centres_total,48
+RBF,sigma,1
+RBF,epochs,8
+RBF,learning_rate,0.05
+RBF,selection_centres,"X.row(c % X.rows()), donc exemples du train"
+SVM,type,linéaire
+SVM,kernel,Aucun
+SVM,epochs,12
+SVM,learning_rate,0.005
+SVM,lambda,0.001
+MLP,type,3 MLP binaires one-vs-rest
+MLP,hidden_size,32
+MLP,epochs,12
+MLP,learning_rate,0.02
+Perceptron,type,3 perceptrons binaires one-vs-rest
+Perceptron,epochs,12
+Perceptron,learning_rate,0.01
