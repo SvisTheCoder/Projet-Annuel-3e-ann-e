@@ -36,9 +36,26 @@
     "model_file": "buildings_3classes_32x32_mlp_v2.model"
   },
   "rbf": {
-    "tuned": false,
+    "tuned": true,
     "v1_test_accuracy": 0.3216216216216216,
+    "v1_test_balanced_accuracy": 0.3333333333333333,
     "v1_test_confusion_matrix": [[0, 0, 107], [0, 0, 144], [0, 0, 119]],
-    "analysis": "Gaussian activations collapse in 1024 dimensions with sigma 1 and only 16 first-row centers; one-vs-rest biases dominate."
+    "selected_parameters": {
+      "epochs": 8,
+      "learning_rate": 0.05,
+      "rbf_centers": 96,
+      "rbf_sigma": 5,
+      "center_selection": "binary_stratified_even_spread"
+    },
+    "selected_validation_accuracy": 0.46621621621621623,
+    "selected_validation_balanced_accuracy": 0.43448694596235587,
+    "selected_validation_confusion_matrix": [[5, 36, 34], [1, 56, 65], [2, 20, 77]],
+    "selected_train_accuracy": 0.5175438596491229,
+    "selected_test_accuracy": 0.5189189189189189,
+    "selected_test_balanced_accuracy": 0.492011861857931,
+    "selected_duration_seconds": 82.3279974,
+    "selected_test_confusion_matrix": [[9, 65, 33], [1, 100, 43], [2, 34, 83]],
+    "v2_retained": true,
+    "model_file": "buildings_3classes_32x32_rbf_v2.model"
   }
 }

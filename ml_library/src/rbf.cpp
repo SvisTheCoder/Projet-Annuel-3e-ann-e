@@ -1,6 +1,71 @@
 #include "rbf.hpp"
 
+#include <algorithm>
 #include <cmath>
+#include <vector>
+
+namespace {
+
+void append_spread_indices(
+    const std::vector<int>& source,
+    int desiredCount,
+    std::vector<int>& selected
+) {
+    if (source.empty() || desiredCount <= 0) {
+        return;
+    }
+
+    for (int index = 0; index < desiredCount; index++) {
+        const std::size_t sourceIndex =
+            static_cast<std::size_t>(index)
+            * static_cast<std::size_t>(source.size())
+            / static_cast<std::size_t>(desiredCount);
+        selected.push_back(
+            source[std::min(sourceIndex, source.size() - 1)]
+        );
+    }
+}
+
+std::vector<int> select_center_indices(
+    const Eigen::VectorXi& y,
+    int sampleCount,
+    int centerCount
+) {
+    std::vector<int> positive;
+    std::vector<int> negative;
+
+    for (int sample = 0; sample < sampleCount; sample++) {
+        if (y(sample) == 1) {
+            positive.push_back(sample);
+        } else {
+            negative.push_back(sample);
+        }
+    }
+
+    std::vector<int> selected;
+    selected.reserve(centerCount);
+
+    if (!positive.empty() && !negative.empty()) {
+        const int positiveCount = centerCount / 2;
+        const int negativeCount = centerCount - positiveCount;
+
+        append_spread_indices(positive, positiveCount, selected);
+        append_spread_indices(negative, negativeCount, selected);
+    } else {
+        std::vector<int> allSamples;
+        allSamples.reserve(sampleCount);
+
+        for (int sample = 0; sample < sampleCount; sample++) {
+            allSamples.push_back(sample);
+        }
+
+        append_spread_indices(allSamples, centerCount, selected);
+    }
+
+    return selected;
+}
+
+}  // namespace
 
 RBF::RBF(
     int numCenters,
@@ -42,8 +107,32 @@ void RBF::fit(const Eigen::MatrixXd& X, const Eigen::VectorXi& y) {
     weights = Eigen::VectorXd::Zero(numCenters);
     bias = 0.0;
 
+    const std::vector<int> centerIndices = select_center_indices(
+        y,
+        static_cast<int>(X.rows()),
+        numCenters
+    );
+
     for (int c = 0; c < numCenters; c++) {
-        centers.row(c) = X.row(c % X.rows());
+        centers.row(c) = X.row(centerIndices[c % centerIndices.size()]);
+    }
+
+    Eigen::MatrixXd activationMatrix(X.rows(), numCenters);
+
+    for (int i = 0; i < X.rows(); i++) {
+        for (int c = 0; c < numCenters; c++) {
+            double distanceSquared = 0.0;
+
+            for (int feature = 0; feature < inputSize; feature++) {
+                const double difference =
+                    X(i, feature) - centers(c, feature);
+                distanceSquared += difference * difference;
+            }
+
+            activationMatrix(i, c) = std::exp(
+                -distanceSquared / (2.0 * sigma * sigma)
+            );
+        }
     }
 
     errorsPerEpoch.clear();
@@ -52,17 +141,12 @@ void RBF::fit(const Eigen::MatrixXd& X, const Eigen::VectorXi& y) {
         int errors = 0;
 
         for (int i = 0; i < X.rows(); i++) {
-            Eigen::VectorXd x = X.row(i).transpose();
-            Eigen::VectorXd activations(numCenters);
+            double output = bias;
 
             for (int c = 0; c < numCenters; c++) {
-                activations(c) = activation(
-                    x,
-                    centers.row(c).transpose()
-                );
+                output += weights(c) * activationMatrix(i, c);
             }
 
-            double output = weights.dot(activations) + bias;
             double probability = sigmoid(output);
 
             int prediction = probability >= 0.5 ? 1 : 0;
@@ -74,7 +158,9 @@ void RBF::fit(const Eigen::MatrixXd& X, const Eigen::VectorXi& y) {
             double error =
                 probability - static_cast<double>(y(i));
 
-            weights -= learningRate * error * activations;
+            for (int c = 0; c < numCenters; c++) {
+                weights(c) -= learningRate * error * activationMatrix(i, c);
+            }
             bias -= learningRate * error;
         }
 
@@ -86,9 +172,15 @@ double RBF::predictProba(const Eigen::VectorXd& x) const {
     Eigen::VectorXd activations(numCenters);
 
     for (int c = 0; c < numCenters; c++) {
-        activations(c) = activation(
-            x,
-            centers.row(c).transpose()
+        double distanceSquared = 0.0;
+
+        for (int feature = 0; feature < x.size(); feature++) {
+            const double difference = x(feature) - centers(c, feature);
+            distanceSquared += difference * difference;
+        }
+
+        activations(c) = std::exp(
+            -distanceSquared / (2.0 * sigma * sigma)
         );
     }
 

@@ -1,0 +1,13 @@
+{
+  "algorithm": "RBF",
+  "seed": 42,
+  "outer_train_size": 1482,
+  "outer_test_size": 370,
+  "selection_train_size": 1186,
+  "validation_size": 296,
+  "outer_test_used_for_selection": false,
+  "candidates": [
+    {"name":"centers_64_sigma_4","epochs":8,"learning_rate":0.050000000000000003,"hidden_size":16,"rbf_centers":64,"rbf_sigma":4,"svm_lambda":0.001,"train_accuracy":0.49241146711635753,"validation_accuracy":0.46959459459459457,"validation_balanced_accuracy":0.41704034884362756,"duration_seconds":43.9055684,"validation_prediction_distribution":[2,178,116],"activation_mean":0.086772669139072139,"activation_min":7.8623453493019344e-06,"activation_max":1,"activation_near_zero_ratio":0,"validation_confusion_matrix":[[1,54,20],[0,82,40],[1,42,56]]}
+  ],
+  "selected_candidate": "centers_64_sigma_4"
+}
