@@ -21,3 +21,22 @@ projet_rendu_2_ml/models/buildings_3classes_32x32_mlp_v1.model
 projet_rendu_2_ml/features_*.txt
 projet_rendu_2_ml/models/*.validation.tmp
 projet_rendu_2_ml/test_model_*.tmp
+
+
+# Les dossiers de build générés par les IDE (CLion, VS Code) ou à la main
+cmake-build-debug/
+cmake-build-release/
+build/
+
+# Les fichiers de cache et internes spécifiques
+CMakeCache.txt
+CMakeFiles/
+CMakeLists.txt.user
+
+# Les produits de la compilation
+*.exe
+*.out
+*.o
+*.obj
+*.a
+*.lib
