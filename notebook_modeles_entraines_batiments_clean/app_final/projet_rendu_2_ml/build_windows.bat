@@ -7,7 +7,7 @@ REM ============================================================
 
 set "PROJECT_DIR=%~dp0"
 set "BUILD_DIR=%PROJECT_DIR%cmake-build-debug"
-set "CMAKE_EXE=C:\Users\User\AppData\Local\Programs\CLion\bin\cmake\win\x64\bin\cmake.exe"
+set "CMAKE_EXE=C:\Program Files\JetBrains\CLion 2025.2.2\bin\cmake\win\x64\bin\cmake.exe"
 set "MINGW_BIN=C:\Program Files\JetBrains\CLion 2025.2.2\bin\mingw\bin"
 
 set "PATH=%MINGW_BIN%;%PATH%"

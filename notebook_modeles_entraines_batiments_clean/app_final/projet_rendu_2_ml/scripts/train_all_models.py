@@ -31,12 +31,16 @@ MODELS = (
         ],
     },
     {
-        "id": "rbf_v1",
+        "id": "rbf_v2",
         "cli_name": "rbf",
         "display_name": "RBF — bâtiments 3 classes",
         "algorithm": "RBF",
-        "file": "buildings_3classes_32x32_rbf_v1.model",
+        "file": "buildings_3classes_32x32_rbf_v2.model",
         "score_type": "best_ovr_probability",
+        "cli_arguments": [
+            "--rbf-centers", "96",
+            "--rbf-sigma", "5",
+        ],
     },
     {
         "id": "svm_v1",
