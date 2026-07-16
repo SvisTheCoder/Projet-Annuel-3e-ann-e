@@ -9,10 +9,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Importe la bibliothèque ML située dans le dossier frère ml_library
-add_subdirectory(
-        ${CMAKE_CURRENT_SOURCE_DIR}/../ml_library
-        ${CMAKE_CURRENT_BINARY_DIR}/ml_library_build
-)
+add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../../../ml_library" "${CMAKE_CURRENT_BINARY_DIR}/ml_library_build")
 
 # Couche adaptatrice entre l'application C et les algorithmes C+
 add_library(ml_core STATIC
