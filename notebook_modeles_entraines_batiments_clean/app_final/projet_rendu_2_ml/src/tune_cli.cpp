@@ -198,6 +198,7 @@ std::vector<std::vector<int>> confusion_matrix(const MLModel* model,
 double balanced_accuracy(const std::vector<std::vector<int>>& matrix) {
     if (matrix.empty()) return 0.0;
 
+    // BA : moyenne du rappel de chaque classe.
     double total_recall = 0.0;
     for (std::size_t row = 0; row < matrix.size(); ++row) {
         int class_total = 0;
@@ -251,6 +252,7 @@ std::vector<int> rbf_center_indices_for_class(
     int class_index,
     int center_count
 ) {
+    // Centres RBF : moitie positifs, moitie negatifs, ordre stable.
     std::vector<int> positive;
     std::vector<int> negative;
 
@@ -514,6 +516,7 @@ int main(int argc, char** argv) {
     Dataset outer_test = {};
     Dataset selection_train = {};
     Dataset validation = {};
+    // Split ext. : outer_test reste bloque pendant le tuning.
     if (!dataset_load_csv(csv_path.c_str(), &dataset)
         || dataset.feature_count != 1024 || dataset.class_count != 3
         || !dataset_split(&dataset, 0.20, kSeed, &outer_train, &outer_test)
@@ -542,6 +545,7 @@ int main(int argc, char** argv) {
                       << ", balanced=" << result.validation_balanced_accuracy
                       << ", duree=" << result.duration_seconds << " s\n";
             results.push_back(result);
+            // Choix sur validation uniquement. Jamais sur outer_test.
             if (is_better_candidate(type, results.back(), results[selected])) {
                 selected = results.size() - 1;
             }

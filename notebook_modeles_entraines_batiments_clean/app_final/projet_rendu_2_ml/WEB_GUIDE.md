@@ -24,7 +24,7 @@ python -m pip install -r .\web\requirements.txt
 
 ```powershell
 python .\scripts\images_to_csv.py `
-  ".\data\Dataset final-20260702T055807Z-3-001\Dataset final sans doublon" `
+  "..\..\..\projet_rendu_2_ml\data\Dataset final-20260702T055807Z-3-001\Dataset final sans doublon" `
   ".\data\batiments_3_classes.csv"
 ```
 
@@ -37,7 +37,8 @@ donc deux exécutions sur le même dataset produisent le même CSV.
 ```powershell
 $env:PATH = "C:\Program Files\JetBrains\CLion 2025.2.2\bin\mingw\bin;$env:PATH"
 $cmake = "C:\Program Files\JetBrains\CLion 2025.2.2\bin\cmake\win\x64\bin\cmake.exe"
-& $cmake --build .\cmake-build-debug --target train_cli predict_cli demo test_models server client -j 1
+$build = "..\..\..\cmake-build-debug"
+& $cmake --build $build --target train_cli predict_cli demo test_models -j 1
 ```
 
 ## 4. Entraîner les quatre modèles et créer le manifest
@@ -46,10 +47,10 @@ $cmake = "C:\Program Files\JetBrains\CLion 2025.2.2\bin\cmake\win\x64\bin\cmake.
 python .\scripts\train_all_models.py `
   --csv .\data\batiments_3_classes.csv `
   --models-dir .\models `
-  --train-cli .\cmake-build-debug\train_cli.exe
+  --train-cli "$build\train_cli.exe"
 ```
 
-Cette commande recrée exactement Perceptron v1, MLP v2, RBF v1 et SVM v1,
+Cette commande recrée exactement Perceptron v1, MLP v2, RBF v2 et SVM v1,
 leurs rapports dans `models/reports` et `models/models_manifest.json`. Pour MLP
 v2, elle applique 12 epochs, un learning rate de 0,02 et 32 neurones cachés.
 Chaque modèle est sauvegardé, rechargé puis contrôlé avant d’être ajouté au
@@ -58,7 +59,7 @@ manifest.
 Pour entraîner un seul modèle, il faut aussi fournir son rapport :
 
 ```powershell
-.\cmake-build-debug\train_cli.exe `
+& "$build\train_cli.exe" `
   --model perceptron `
   --csv .\data\batiments_3_classes.csv `
   --output .\models\buildings_3classes_32x32_perceptron_v1.model `
@@ -85,7 +86,7 @@ Le deuxième argument est un fichier texte contenant exactement 1 024 valeurs
 normalisées entre 0 et 1 :
 
 ```powershell
-.\cmake-build-debug\predict_cli.exe `
+& "$build\predict_cli.exe" `
   .\models\buildings_3classes_32x32_perceptron_v1.model `
   .\chemin\vers\features.txt `
   --expected-class-count 3

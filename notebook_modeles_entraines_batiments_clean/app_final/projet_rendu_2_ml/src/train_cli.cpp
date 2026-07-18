@@ -149,6 +149,7 @@ bool validate_dataset(const Dataset& dataset, std::map<int, int>& distribution) 
 
 #ifdef _WIN32
 std::string sha256_file(const std::filesystem::path& path) {
+    // SHA-256 Windows : preuve du CSV utilise.
     BCRYPT_ALG_HANDLE algorithm = nullptr;
     BCRYPT_HASH_HANDLE hash_handle = nullptr;
     DWORD object_size = 0;
@@ -220,6 +221,7 @@ std::vector<std::vector<int>> confusion_matrix(
     const MLModel* model,
     const Dataset& dataset
 ) {
+    // CM : lignes = vraies classes, colonnes = predictions.
     std::vector<std::vector<int>> matrix(
         dataset.class_count,
         std::vector<int>(dataset.class_count, 0)
@@ -436,6 +438,7 @@ int main(int argc, char** argv) {
         std::filesystem::create_directories(output_path.parent_path());
     }
     std::filesystem::remove(temporary_path);
+    // Sauve en tmp, recharge, puis remplace le fichier final.
     if (!ml_save(model, temporary_path.string().c_str())) {
         std::cerr << "Sauvegarde temporaire impossible : " << ml_last_error() << '\n';
         ml_free(model);

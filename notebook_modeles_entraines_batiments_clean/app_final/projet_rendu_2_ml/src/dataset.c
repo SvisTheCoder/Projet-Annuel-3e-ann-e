@@ -211,7 +211,7 @@ int dataset_split(
         indices[i] = i;
     }
 
-    /* Melange de Fisher-Yates avec une graine reproductible. */
+    /* Split : Fisher-Yates + seed fixe. */
     for (int i = source->sample_count - 1; i > 0; i--) {
         int random_index = (int)(next_random(&seed) % (unsigned int)(i + 1));
         int temporary = indices[i];

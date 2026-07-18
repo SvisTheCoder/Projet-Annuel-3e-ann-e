@@ -2,24 +2,47 @@
 
 import io
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
 
-from app import PROJECT_DIR, create_app
+from app import REPOSITORY_DIR, create_app
 from image_processing import FEATURE_COUNT, image_to_features
 
 
-DATASET_DIR = (
-    PROJECT_DIR
-    / "data"
-    / "Dataset final-20260702T055807Z-3-001"
-    / "Dataset final sans doublon"
-)
+DATASET_NAME = Path(
+    "Dataset final-20260702T055807Z-3-001"
+) / "Dataset final sans doublon"
+
+
+def find_dataset_dir() -> Path | None:
+    """Trouve le dataset local sans imposer son emplacement dans Git."""
+    configured_path = os.environ.get("BUILDINGS_DATASET_DIR")
+    candidates = [
+        Path(configured_path) if configured_path else None,
+        REPOSITORY_DIR / "projet_rendu_2_ml" / "data" / DATASET_NAME,
+        REPOSITORY_DIR / "projet_app" / "data" / DATASET_NAME,
+        Path(__file__).resolve().parents[1] / "data" / DATASET_NAME,
+    ]
+    for candidate in candidates:
+        if candidate is not None and candidate.is_dir():
+            return candidate
+    return None
+
+
+DATASET_DIR = find_dataset_dir()
 
 
 def first_image(class_name: str) -> Path:
-    return sorted((DATASET_DIR / class_name).glob("*.jpg"), key=lambda path: path.name)[0]
+    if DATASET_DIR is None:
+        raise unittest.SkipTest(
+            "Dataset image local absent. Utiliser BUILDINGS_DATASET_DIR pour indiquer son chemin."
+        )
+    images = sorted((DATASET_DIR / class_name).glob("*.jpg"), key=lambda path: path.name)
+    if not images:
+        raise unittest.SkipTest(f"Aucune image JPG trouvée pour la classe {class_name}.")
+    return images[0]
 
 
 def upload(path: Path, filename: str | None = None):

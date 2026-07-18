@@ -16,6 +16,8 @@ from image_processing import ALLOWED_EXTENSIONS, FEATURE_COUNT, image_to_feature
 
 
 PROJECT_DIR = Path(__file__).resolve().parents[1]
+# Racine Git : le build CLion est cree ici.
+REPOSITORY_DIR = PROJECT_DIR.parents[2]
 DEFAULT_MODELS_DIR = PROJECT_DIR / "models"
 MANIFEST_FILENAME = "models_manifest.json"
 MAX_IMAGE_SIZE = 10 * 1024 * 1024
@@ -24,8 +26,10 @@ MAX_IMAGE_COUNT = 10
 
 def find_predict_cli() -> Path:
     configured_path = os.environ.get("PREDICT_CLI_PATH")
+    # Priorite : variable env., build CLion, puis builds locaux.
     candidates = [
         Path(configured_path) if configured_path else None,
+        REPOSITORY_DIR / "cmake-build-debug" / "predict_cli.exe",
         PROJECT_DIR / "cmake-build-debug" / "predict_cli.exe",
         PROJECT_DIR / "build" / "predict_cli.exe",
         PROJECT_DIR / "build" / "Release" / "predict_cli.exe",
@@ -116,6 +120,7 @@ def run_prediction(
     features_path: Path,
     expected_class_count: int,
 ) -> dict:
+    # Contrat : arguments separes, timeout, JSON sur stdout.
     completed = subprocess.run(
         [
             str(predict_cli),
@@ -208,6 +213,7 @@ def create_app(test_config: dict | None = None) -> Flask:
                     predict_cli = None
 
                 if predict_cli is not None:
+                    # Dossier tmp supprime auto. a la fin du bloc.
                     with tempfile.TemporaryDirectory(prefix="ml_web_") as temp_directory:
                         temp_path = Path(temp_directory)
                         for index, upload in enumerate(uploads):

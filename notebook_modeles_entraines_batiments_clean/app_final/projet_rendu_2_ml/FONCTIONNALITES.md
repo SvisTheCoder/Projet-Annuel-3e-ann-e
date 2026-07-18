@@ -3,7 +3,8 @@
 ## Modèles
 
 - [x] Perceptron de Rosenblatt multi-classe par un-contre-tous
-- [x] PMC avec une couche cachée, softmax et SGD
+- [x] PMC binaire avec une couche cachée, sigmoïde et rétropropagation
+- [x] Adaptation multi-classe des modèles par un-contre-tous dans `ml_api.cpp`
 - [x] RBF avec centres simples et fonctions gaussiennes
 - [x] SVM linéaire avec perte hinge
 
@@ -28,12 +29,12 @@
 - [x] Chargement de chaque type de modèle
 - [x] Vérification automatique après rechargement
 
-## Client / serveur
+## Utilisation des modèles
 
-- [x] Serveur TCP en C
-- [x] Chargement d'un modèle par le serveur
-- [x] Envoi d'une nouvelle donnée par le client
-- [x] Retour de la classe prédite
+- [x] Entraînement reproductible avec `train_cli`
+- [x] Prédiction non interactive avec `predict_cli`
+- [x] Interface web locale Flask
+- [x] Manifest des modèles disponibles
 
 ## Livrables
 

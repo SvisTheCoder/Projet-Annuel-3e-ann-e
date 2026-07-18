@@ -22,6 +22,7 @@ const char* model_name(MLModelType type) {
 }
 
 const char* score_type(MLModelType type) {
+    // Lineaires = marge. MLP/RBF = meilleur score OVR.
     if (type == ML_PERCEPTRON || type == ML_SVM) {
         return "margin";
     }
@@ -135,6 +136,7 @@ int main(int argc, char** argv) {
     }
 
     const MLModelType type = ml_type(model);
+    // stdout = JSON seulement. Flask lit cette ligne.
     std::cout << std::setprecision(17)
               << "{\"model\":\"" << model_name(type)
               << "\",\"class_id\":" << prediction

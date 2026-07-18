@@ -40,3 +40,12 @@ CMakeLists.txt.user
 *.obj
 *.a
 *.lib
+
+# Sorties de controle et anciennes versions des slides
+outputs/*.inspect.ndjson
+outputs/Projet_Annuel_3_Big_Data_2026_final_jury*.pptx
+outputs/Projet_Annuel_3_Big_Data_2026_soutenance.pptx
+outputs/Projet_Annuel_3_Big_Data_2026_RENDU_FINAL.pptx
+
+# Copie locale incomplete : l'app suivie est dans notebook_modeles_entraines_batiments_clean
+projet_app/

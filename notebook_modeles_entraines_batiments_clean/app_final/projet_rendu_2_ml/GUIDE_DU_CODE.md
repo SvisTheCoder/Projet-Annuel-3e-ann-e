@@ -7,7 +7,9 @@
 3. `src/dataset.c`
 4. `src/tests.c`
 5. `src/ml_api.cpp`
-6. `src/server.c` et `src/client.c`
+6. `src/train_cli.cpp`
+7. `src/predict_cli.cpp`
+8. `web/app.py`
 
 ## 1. API entre C et C++
 
@@ -38,14 +40,16 @@ biais = biais + learning_rate × réponse_attendue
 
 ## 3. PMC
 
-`train_mlp` effectue, pour chaque exemple :
+Le PMC de `ml_library` effectue, pour chaque exemple :
 
 1. propagation vers la couche cachée ;
-2. calcul des sorties ;
-3. softmax ;
-4. calcul de l’erreur ;
-5. rétropropagation ;
-6. mise à jour SGD.
+2. calcul de la sortie avec une sigmoïde ;
+3. calcul de l’erreur ;
+4. rétropropagation ;
+5. mise à jour des poids.
+
+`ml_api.cpp` crée un PMC binaire par classe pour obtenir une classification
+multi-classe en un-contre-tous.
 
 ## 4. RBF
 
@@ -80,13 +84,11 @@ les prédictions restent identiques après rechargement.
 `dataset_split` mélange des indices et recopie 80 % des lignes dans train et
 20 % dans test.
 
-## 8. Client / serveur
+## 8. Applications à présenter
 
-Le serveur charge un modèle déjà entraîné. Le client envoie une nouvelle ligne
-de caractéristiques. Le serveur appelle simplement :
+- `demo.exe --tests` vérifie les cas simples et la sauvegarde des modèles ;
+- `train_cli.exe` entraîne un modèle à partir du CSV ;
+- `predict_cli.exe` charge un modèle et prédit une classe ;
+- Flask prépare une image et appelle `predict_cli.exe`.
 
-```c
-ml_predict(model, values);
-```
-
-puis renvoie le numéro de classe.
+Flask ne contient pas une deuxième implémentation du machine learning.

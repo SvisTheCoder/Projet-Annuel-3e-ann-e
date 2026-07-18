@@ -153,7 +153,7 @@ Le mot « confidence » ne doit pas être utilisé :
 Toutes les commandes suivantes sont exécutées depuis :
 
 ```text
-C:\Users\33783\OneDrive\Documents\clean_proto_lib\Projet-Annuel-3e-ann-e\projet_rendu_2_ml
+C:\Users\33783\OneDrive\Documents\clean_proto_lib\Projet-Annuel-3e-ann-e\notebook_modeles_entraines_batiments_clean\app_final\projet_rendu_2_ml
 ```
 
 Déclarer les outils exacts de CLion :
@@ -161,6 +161,7 @@ Déclarer les outils exacts de CLion :
 ```powershell
 $env:PATH = "C:\Program Files\JetBrains\CLion 2025.2.2\bin\mingw\bin;$env:PATH"
 $cmake = "C:\Program Files\JetBrains\CLion 2025.2.2\bin\cmake\win\x64\bin\cmake.exe"
+$build = "..\..\..\cmake-build-debug"
 ```
 
 L’environnement web validé utilise :
@@ -181,36 +182,35 @@ python -m pip install -r .\web\requirements.txt
 Compiler les principales cibles :
 
 ```powershell
-& $cmake --build .\cmake-build-debug `
-  --target ml_algorithms ml_core c_support demo test_models train_cli tune_cli predict_cli server client `
+& $cmake --build $build `
+  --target ml_algorithms ml_core c_support demo test_models train_cli tune_cli predict_cli `
   -j 1
 ```
 
 Vérifier ensuite le build parallèle :
 
 ```powershell
-& $cmake --build .\cmake-build-debug -j 10
+& $cmake --build $build -j 10
 ```
 
 Lancer le menu principal :
 
 ```powershell
-.\cmake-build-debug\demo.exe
+& "$build\demo.exe"
 ```
 
 Lancer les tests C++ :
 
 ```powershell
-.\cmake-build-debug\ml_library_build\test_models.exe
-.\cmake-build-debug\demo.exe --tests
-.\cmake-build-debug\mlp_xor_audit.exe
+& "$build\ml_library_build\test_models.exe"
+& "$build\demo.exe" --tests
 ```
 
 Tester `predict_cli` avec un fichier contenant exactement 1 024 valeurs
 normalisées :
 
 ```powershell
-.\cmake-build-debug\predict_cli.exe `
+& "$build\predict_cli.exe" `
   .\models\buildings_3classes_32x32_mlp_v2.model `
   .\chemin\vers\features.txt `
   --expected-class-count 3
@@ -266,7 +266,7 @@ Pour recréer exactement le catalogue officiel courant et son manifest :
 .\.venv\Scripts\python.exe .\scripts\train_all_models.py `
   --csv .\data\batiments_3_classes.csv `
   --models-dir .\models `
-  --train-cli .\cmake-build-debug\train_cli.exe `
+  --train-cli "$build\train_cli.exe" `
   --seed 42
 ```
 
@@ -292,7 +292,6 @@ Les tests principaux sont :
 | Flask | `.\.venv\Scripts\python.exe .\web\test_app.py` | teste prétraitement, manifest, image réelle et erreurs web |
 | Modèle absent | `web/test_app.py` | vérifie le message lorsqu’un fichier du manifest manque |
 | Upload multiple | `web/test_app.py` | vérifie plusieurs images et le nettoyage des temporaires |
-| Audit MLP/XOR | `mlp_xor_audit.exe` | teste plusieurs seeds et ordres avec assertions |
 
 Commande Flask :
 
@@ -300,10 +299,11 @@ Commande Flask :
 .\.venv\Scripts\python.exe .\web\test_app.py
 ```
 
-Les cas artificiels affichant une accuracy de `1.000` utilisent les mêmes
-petites données pour l’entraînement et l’évaluation. Ils vérifient le câblage de
-l’algorithme et la persistance, mais ne mesurent pas sa capacité à généraliser
-sur de nouvelles images.
+Les cas artificiels utilisent maintenant deux groupes séparés : un groupe pour
+l'entraînement et un groupe de points jamais vus pour l'évaluation. Les scores
+sont affichés en pourcentage pour éviter de confondre `1.000` avec `1 %` : une
+accuracy de `100 %` reste normale sur les petits cas linéaires volontairement
+faciles, mais elle mesure désormais de vrais exemples de test.
 
 # 10. Limites actuelles
 
@@ -313,7 +313,8 @@ sur de nouvelles images.
   beaucoup de détails architecturaux et toutes les informations de couleur
   sont perdus.
 - Art déco et Art nouveau restent fréquemment confondus.
-- RBF v1 est insuffisant : il prédit Gothique pour tout le jeu de test.
+- RBF v1 prédisait Gothique pour tout le jeu de test. RBF v2 corrige ce
+  comportement, mais reste moins performant que MLP v2.
 - Le split est reproductible mais non stratifié.
 - Une prédiction correcte dans l’interface ne garantit pas que le modèle soit
   fiable sur une autre image ou un autre dataset.

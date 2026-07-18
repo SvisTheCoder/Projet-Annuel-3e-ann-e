@@ -25,6 +25,7 @@ struct MLModel {
     int feature_count;
     int class_count;
     MLParams params;
+    // OVR : un modele binaire par classe.
     std::vector<std::unique_ptr<Perceptron>> perceptrons;
     std::vector<std::unique_ptr<MLP>> mlps;
     std::vector<std::unique_ptr<RBF>> rbfs;
@@ -48,6 +49,7 @@ static bool valid_type(MLModelType type) {
 }
 
 static void create_binary_models(MLModel& model) {
+    // Seed fixe = memes poids de depart.
     std::srand(model.params.seed);
     for (int class_index = 0; class_index < model.class_count; ++class_index) {
         switch (model.type) {
@@ -150,6 +152,7 @@ int ml_train(
         const Eigen::MatrixXd features =
             copy_features(X, sample_count, model->feature_count);
         for (int class_index = 0; class_index < model->class_count; ++class_index) {
+            // OVR : classe courante = positif, autres = negatif.
             Eigen::VectorXi binary_labels(sample_count);
             const bool signed_labels =
                 model->type == ML_PERCEPTRON || model->type == ML_SVM;
@@ -213,6 +216,7 @@ int ml_predict_with_score(
     }
     int best_class = 0;
     double best_score = class_score(*model, 0, features);
+    // Argmax : garde la classe avec le score OVR le plus haut.
     for (int class_index = 1; class_index < model->class_count; ++class_index) {
         const double score = class_score(*model, class_index, features);
         if (score > best_score) {
@@ -296,6 +300,7 @@ int ml_save(const MLModel* model, const char* path) {
         return 0;
     }
     file << std::setprecision(17);
+    // v2 : en-tete puis poids/biais de chaque modele OVR.
     file << "MLMODEL 2\n";
     file << static_cast<int>(model->type) << ' ' << model->feature_count
          << ' ' << model->class_count << '\n';
@@ -379,6 +384,7 @@ static bool load_legacy_vector(std::istream& file, std::vector<double>& values) 
 }
 
 static bool load_version_1(std::istream& file, MLModel& model) {
+    // Compat. v1 : ancien format avec tableaux aplatis.
     std::vector<double> weights, biases, W1raw, b1raw, W2raw, b2raw, centersraw;
     if (!load_legacy_vector(file, weights) || !load_legacy_vector(file, biases)
         || !load_legacy_vector(file, W1raw) || !load_legacy_vector(file, b1raw)

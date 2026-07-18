@@ -39,24 +39,37 @@ static void clear_everything(void) {
 }
 
 static int load_dataset_from_path(const char* path) {
-    dataset_free(&dataset);
-    clear_split();
+    /* Charge d'abord en tmp : ancien dataset garde si erreur. */
+    Dataset loaded_dataset = {0};
+    Dataset loaded_train = {0};
+    Dataset loaded_test = {0};
 
-    if (!dataset_load_csv(path, &dataset)) {
+    if (!dataset_load_csv(path, &loaded_dataset)) {
         printf("Impossible de charger le CSV : %s\n", path);
         return 0;
     }
 
     if (!dataset_split(
-            &dataset,
+            &loaded_dataset,
             0.20,
             42,
-            &train_dataset,
-            &test_dataset)) {
+            &loaded_train,
+            &loaded_test)) {
         printf("Impossible de separer le dataset.\n");
-        dataset_free(&dataset);
+        dataset_free(&loaded_dataset);
+        dataset_free(&loaded_train);
+        dataset_free(&loaded_test);
         return 0;
     }
+
+    ml_free(current_model);
+    current_model = NULL;
+    dataset_free(&dataset);
+    clear_split();
+
+    dataset = loaded_dataset;
+    train_dataset = loaded_train;
+    test_dataset = loaded_test;
 
     dataset_print_info(&dataset);
     printf("Train : %d exemples\n", train_dataset.sample_count);
@@ -102,10 +115,28 @@ static MLParams ask_model_params(MLModelType type) {
     return params;
 }
 
+static void print_model_scores(const MLModel* model) {
+    /* ml_score est entre 0 et 1 ; affichage en %. */
+    double train_accuracy = ml_score(
+        model,
+        train_dataset.X,
+        train_dataset.y,
+        train_dataset.sample_count
+    ) * 100.0;
+    double test_accuracy = ml_score(
+        model,
+        test_dataset.X,
+        test_dataset.y,
+        test_dataset.sample_count
+    ) * 100.0;
+
+    printf("Accuracy train : %.1f %%\n", train_accuracy);
+    printf("Accuracy test  : %.1f %%\n", test_accuracy);
+}
+
 static int train_current_model(
     MLModelType type,
-    MLParams params,
-    int print_result
+    MLParams params
 ) {
     if (train_dataset.X == NULL) {
         printf("Chargez d'abord un dataset.\n");
@@ -137,54 +168,36 @@ static int train_current_model(
     ml_free(current_model);
     current_model = new_model;
 
-    if (print_result) {
-        printf("Modele %s entraine.\n", model_name(type));
-        printf(
-            "Accuracy train : %.3f\n",
-            ml_score(
-                current_model,
-                train_dataset.X,
-                train_dataset.y,
-                train_dataset.sample_count
-            )
-        );
-        printf(
-            "Accuracy test  : %.3f\n",
-            ml_score(
-                current_model,
-                test_dataset.X,
-                test_dataset.y,
-                test_dataset.sample_count
-            )
-        );
-    }
+    printf("Modele %s entraine.\n", model_name(type));
+    print_model_scores(current_model);
 
     return 1;
 }
 
 static void train_from_menu(MLModelType type) {
     MLParams params = ask_model_params(type);
-    train_current_model(type, params, 1);
+    train_current_model(type, params);
 }
 
 static MLParams comparison_params(MLModelType type) {
+    /* Params courts pour une comparaison en direct. */
     MLParams params = ml_default_params();
 
     if (type == ML_PERCEPTRON) {
-        params.epochs = 30;
+        params.epochs = 12;
         params.learning_rate = 0.01;
     } else if (type == ML_MLP) {
-        params.epochs = 300;
-        params.learning_rate = 0.05;
+        params.epochs = 12;
+        params.learning_rate = 0.02;
         params.hidden_size = 32;
     } else if (type == ML_RBF) {
-        params.epochs = 200;
+        params.epochs = 8;
         params.learning_rate = 0.05;
-        params.rbf_centers = 20;
-        params.rbf_sigma = 1.0;
+        params.rbf_centers = 96;
+        params.rbf_sigma = 5.0;
     } else if (type == ML_SVM) {
-        params.epochs = 100;
-        params.learning_rate = 0.01;
+        params.epochs = 12;
+        params.learning_rate = 0.005;
         params.svm_lambda = 0.001;
     }
 
@@ -197,7 +210,7 @@ static void compare_all_models(void) {
         return;
     }
 
-    printf("\n%-12s | %-10s | %-10s\n", "Modele", "Train", "Test");
+    printf("\n%-12s | %-10s | %-10s\n", "Modele", "Train (%)", "Test (%)");
     printf("-------------+------------+-----------\n");
 
     for (int raw_type = ML_PERCEPTRON; raw_type <= ML_SVM; raw_type++) {
@@ -237,8 +250,8 @@ static void compare_all_models(void) {
         printf(
             "%-12s | %-10.3f | %-10.3f\n",
             model_name(type),
-            train_score,
-            test_score
+            train_score * 100.0,
+            test_score * 100.0
         );
 
         ml_free(model);
@@ -251,25 +264,14 @@ static void evaluate_current_model(void) {
         return;
     }
 
+    if (ml_feature_count(current_model) != train_dataset.feature_count
+        || ml_class_count(current_model) != train_dataset.class_count) {
+        printf("Le modele et le dataset n'ont pas les memes dimensions.\n");
+        return;
+    }
+
     printf("Modele : %s\n", model_name(ml_type(current_model)));
-    printf(
-        "Accuracy train : %.3f\n",
-        ml_score(
-            current_model,
-            train_dataset.X,
-            train_dataset.y,
-            train_dataset.sample_count
-        )
-    );
-    printf(
-        "Accuracy test  : %.3f\n",
-        ml_score(
-            current_model,
-            test_dataset.X,
-            test_dataset.y,
-            test_dataset.sample_count
-        )
-    );
+    print_model_scores(current_model);
 }
 
 static void save_current_model(void) {
@@ -361,6 +363,13 @@ static int run_compare_command(const char* csv_path) {
     return 0;
 }
 
+static void print_usage(const char* program_name) {
+    printf("Utilisation :\n");
+    printf("  %s                 menu interactif\n", program_name);
+    printf("  %s --tests         lancer les cas de test\n", program_name);
+    printf("  %s --compare CSV   comparer les quatre modeles\n", program_name);
+}
+
 int main(int argc, char** argv) {
     if (argc == 2 && strcmp(argv[1], "--tests") == 0) {
         run_all_tests();
@@ -371,6 +380,16 @@ int main(int argc, char** argv) {
         int result = run_compare_command(argv[2]);
         clear_everything();
         return result;
+    }
+
+    if (argc == 2 && strcmp(argv[1], "--help") == 0) {
+        print_usage(argv[0]);
+        return 0;
+    }
+
+    if (argc != 1) {
+        print_usage(argv[0]);
+        return 1;
     }
 
     int choice = -1;

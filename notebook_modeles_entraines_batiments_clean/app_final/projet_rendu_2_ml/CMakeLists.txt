@@ -11,7 +11,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Importe la bibliothèque ML située dans le dossier frère ml_library
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../../../ml_library" "${CMAKE_CURRENT_BINARY_DIR}/ml_library_build")
 
-# Couche adaptatrice entre l'application C et les algorithmes C+
+# Couche adaptatrice entre l'application C et les algorithmes C++.
 add_library(ml_core STATIC
         src/ml_api.cpp
 )
@@ -45,24 +45,6 @@ target_link_libraries(demo PRIVATE
         c_support
 )
 
-# Serveur TCP de prédiction
-add_executable(server
-        src/server.c
-)
-
-target_link_libraries(server PRIVATE
-        ml_core
-)
-
-# Client TCP
-add_executable(client
-        src/client.c
-)
-
-target_include_directories(client PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/include
-)
-
 # Outil non interactif utilisé par l'interface web pour une prédiction.
 add_executable(predict_cli
         src/predict_cli.cpp
@@ -89,20 +71,8 @@ if(MINGW)
 endif()
 
 if(WIN32)
- target_link_libraries(server PRIVATE ws2_32)
- target_link_libraries(client PRIVATE ws2_32)
  target_link_libraries(train_cli PRIVATE bcrypt)
 endif()
-
-# Audit isolé : il observe la sensibilité du MLP sur XOR sans modifier l'algorithme.
-add_executable(mlp_xor_audit
-        src/mlp_xor_audit.cpp
-)
-
-target_link_libraries(mlp_xor_audit PRIVATE
-        ml_core
-        ml_algorithms
-)
 
 # Comparaison limitée de paramètres sur une validation interne au train.
 # Le jeu de test externe n'est jamais utilisé par cet outil.
